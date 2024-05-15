@@ -4,11 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
-	"strconv"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/PeepoFrog/networkTreeParser/parser"
 )
@@ -23,122 +19,61 @@ type Node struct {
 
 func GetAllNodesV2(ctx context.Context, firstNode string) {
 	nodesPool := make(map[string]string)
+	blacklist := make(map[string]string)
 
 	node, err := parser.GetNetInfoFromInterx(ctx, firstNode)
 	if err != nil {
 		panic(err)
 	}
 
-	for _, n := range node.Peers {
-		go func() {
-
-			n1, err := parser.GetNetInfoFromInterx(ctx, n.RemoteIP)
-			if err != nil {
-				return
-			}
-			
-
-		}()
-	}
-
-}
-
-func GetAllNodes(ctx context.Context, firstNode string) map[string]Node {
-
-	var finalTree = make(map[string]Node)
-
-	var poolOfNodes = make(map[string]Node)
-
-	node, err := parser.GetNetInfoFromInterx(ctx, firstNode)
-	if err != nil {
-		panic(err)
-	}
-	errorPeers := 0
-	goodPeers := 0
 	var wg sync.WaitGroup
+	for _, n := range node.Peers {
 
-	poolChan := make(chan Node)
-
-	// go finalAdder(&finalTree, poolChan)
-	// wg.Add(1)
-	go func() {
-		for n := range poolChan {
-			currentKey := fmt.Sprintf("%v@%v", n.IP, n.ID)
-			if _, exist := finalTree[currentKey]; !exist {
-				// mu.Lock()
-				finalTree[currentKey] = n
-				// mu.Unlock()
-				// log.Println("range")
-			}
-		}
-		defer log.Printf("DONE")
-		defer wg.Done()
-	}()
-	for _, peer := range node.Peers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			peerCtx, cancel := context.WithTimeout(ctx, time.Second*1)
-			defer cancel()
-
-			_, err = parser.GetNetInfoFromInterx(peerCtx, peer.RemoteIP)
-			mu.Lock()
-			if err != nil {
-				errorPeers++
-			} else {
-				goodPeers++
-				fmt.Println(peer.RemoteIP, peer.NodeInfo.ID)
-			}
-			mu.Unlock()
-			u, err := url.Parse(peer.NodeInfo.ListenAddr)
-			if err != nil {
-				log.Println("Error parsing URL:", err)
-				return
-			}
-			host := u.Host
-			parts := strings.Split(host, ":")
-			if len(parts) != 2 {
-				log.Println("Invalid host format")
-				return
-			}
-
-			port, err := strconv.Atoi(parts[1])
-			if err != nil {
-				log.Println("WrongPort: ", err.Error())
-			}
-			currentKey := fmt.Sprintf("%v@%v", peer.RemoteIP, peer.NodeInfo.ID)
-			mu.Lock()
-			if _, exist := poolOfNodes[currentKey]; !exist {
-				poolOfNodes[currentKey] = Node{
-					IP:       peer.RemoteIP,
-					P2P_port: port,
-					ID:       peer.NodeInfo.ID,
-				}
-			}
-
-			mu.Unlock()
-			poolChan <- poolOfNodes[currentKey]
-		}()
+		log.Println(n.RemoteIP)
+		testLoop(ctx, &wg, nodesPool, blacklist, n.RemoteIP)
 
 	}
 
 	wg.Wait()
-	for _, n := range poolOfNodes {
-		fmt.Println(n)
+	fmt.Println()
+	log.Printf("\nTotal saved peers:%v\nOriginal node peer count: %v\nBlacklisted nodes(not reachable):n %v\n", len(nodesPool), len(node.Peers), len(blacklist))
+
+	mu.Lock()
+	for _, node := range nodesPool {
+		log.Println(node)
 	}
-	for _, n := range finalTree {
-		fmt.Println(n)
-	}
-	fmt.Println(len(finalTree), len(poolOfNodes))
-	return nil
+	mu.Unlock()
+
 }
 
-// func finalAdder(final *map[string]Node, c <-chan Node) {
-// 	for n := range c {
-// 		mu.Lock()
-// 		// &final[fmt.Sprintf("%v@%v", n.IP, n.ID)] <- n
-
-// 		mu.Unlock()
-// 	}
-
-// }
+func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist map[string]string, ip string) {
+	wg.Add(1)
+	defer wg.Done()
+	log.Println("running testloop: ", ip)
+	if _, exist := blacklist[ip]; exist {
+		log.Printf("BLACKLISTED: %v", ip)
+		return
+	}
+	if _, exist := pool[ip]; exist {
+		log.Printf("ALREADY EXIST: %v", ip)
+		return
+	} else {
+		ni, err := parser.GetNetInfoFromInterx(ctx, ip)
+		if err != nil {
+			log.Printf("%v", err.Error())
+			blacklist[ip] = ip
+			return
+		}
+		mu.Lock()
+		log.Printf("adding %v", ip)
+		pool[ip] = ip
+		mu.Unlock()
+		for _, p := range ni.Peers {
+			wg.Add(1)
+			go func() {
+				testLoop(ctx, wg, pool, blacklist, p.RemoteIP)
+				defer wg.Done()
+			}()
+		}
+	}
+}

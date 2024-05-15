@@ -7,14 +7,16 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 )
 
-
-
 func GetNetInfoFromInterx(ctx context.Context, ip string) (*Response, error) {
+
+	ctxWithTO, c := context.WithTimeout(ctx, time.Second*10)
+	defer c()
 	log.Printf("Getting net_info from: %v", ip)
 	url := fmt.Sprintf("http://%v:11000/api/net_info", ip)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctxWithTO, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
