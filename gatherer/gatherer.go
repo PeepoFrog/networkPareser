@@ -28,15 +28,14 @@ func GetAllNodesV2(ctx context.Context, firstNode string) {
 
 	var wg sync.WaitGroup
 	for _, n := range node.Peers {
-
 		log.Println(n.RemoteIP)
-		testLoop(ctx, &wg, nodesPool, blacklist, n.RemoteIP)
-
+		wg.Add(1)
+		go testLoop(ctx, &wg, nodesPool, blacklist, n.RemoteIP)
 	}
 
 	wg.Wait()
 	fmt.Println()
-	log.Printf("\nTotal saved peers:%v\nOriginal node peer count: %v\nBlacklisted nodes(not reachable):n %v\n", len(nodesPool), len(node.Peers), len(blacklist))
+	log.Printf("\nTotal saved peers:%v\nOriginal node peer count: %v\nBlacklisted nodes(not reachable): %v\n", len(nodesPool), len(node.Peers), len(blacklist))
 
 	mu.Lock()
 	for _, node := range nodesPool {
@@ -44,36 +43,42 @@ func GetAllNodesV2(ctx context.Context, firstNode string) {
 	}
 	mu.Unlock()
 
+	fmt.Println("Done")
+
 }
 
 func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist map[string]string, ip string) {
-	wg.Add(1)
 	defer wg.Done()
 	log.Println("running testloop: ", ip)
+
+	mu.Lock()
 	if _, exist := blacklist[ip]; exist {
+		mu.Unlock()
 		log.Printf("BLACKLISTED: %v", ip)
 		return
 	}
 	if _, exist := pool[ip]; exist {
+		mu.Unlock()
 		log.Printf("ALREADY EXIST: %v", ip)
 		return
-	} else {
-		ni, err := parser.GetNetInfoFromInterx(ctx, ip)
-		if err != nil {
-			log.Printf("%v", err.Error())
-			blacklist[ip] = ip
-			return
-		}
+	}
+	mu.Unlock()
+
+	ni, err := parser.GetNetInfoFromInterx(ctx, ip)
+	if err != nil {
+		log.Printf("%v", err.Error())
 		mu.Lock()
-		log.Printf("adding %v", ip)
-		pool[ip] = ip
+		blacklist[ip] = ip
 		mu.Unlock()
-		for _, p := range ni.Peers {
-			wg.Add(1)
-			go func(ctx context.Context, wg *sync.WaitGroup, pool, blacklist map[string]string, ip string) {
-				testLoop(ctx, wg, pool, blacklist, ip)
-				defer wg.Done()
-			}(ctx, wg, pool, blacklist, p.RemoteIP)
-		}
+		return
+	}
+
+	mu.Lock()
+	pool[ip] = ip
+	mu.Unlock()
+
+	for _, p := range ni.Peers {
+		wg.Add(1)
+		go testLoop(ctx, wg, pool, blacklist, p.RemoteIP)
 	}
 }
