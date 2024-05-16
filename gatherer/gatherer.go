@@ -70,10 +70,10 @@ func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist map[strin
 		mu.Unlock()
 		for _, p := range ni.Peers {
 			wg.Add(1)
-			go func() {
-				testLoop(ctx, wg, pool, blacklist, p.RemoteIP)
+			go func(ctx context.Context, wg *sync.WaitGroup, pool, blacklist map[string]string, ip string) {
+				testLoop(ctx, wg, pool, blacklist, ip)
 				defer wg.Done()
-			}()
+			}(ctx, wg, pool, blacklist, p.RemoteIP)
 		}
 	}
 }
