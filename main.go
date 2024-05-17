@@ -9,13 +9,11 @@ import (
 
 func main() {
 	ctx := context.Background()
-
-	nodes, err := v3.GetAllNodesV3(ctx, "148.251.69.56", 1, false)
+	nodes, err := v3.GetAllNodesV3(ctx, "148.251.69.56", 1, true)
 	if err != nil {
 		log.Println(err)
 		panic(err)
 	}
-
 	for _, n := range nodes {
 		log.Println(n)
 	}

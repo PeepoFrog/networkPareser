@@ -42,7 +42,6 @@ func GetAllNodesV3(ctx context.Context, firstNode string, depth int, ignoreDepth
 
 func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist, processed map[string]string, ip string, currentDepth, totalDepth int, ignoreDepth bool) {
 
-	log.Println("Current depth: ", currentDepth)
 	defer wg.Done()
 	if !ignoreDepth {
 		if currentDepth >= totalDepth {
@@ -51,7 +50,7 @@ func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist, processe
 		}
 	}
 
-	log.Println("running testloop: ", ip)
+	log.Printf("Current depth: %v, IP: %v", currentDepth, ip)
 
 	mu.Lock()
 	if _, exist := blacklist[ip]; exist {
@@ -66,7 +65,7 @@ func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist, processe
 	}
 	if _, exist := processed[ip]; exist {
 		mu.Unlock()
-		log.Printf("ALREADY PROCCESSED: %v", ip)
+		log.Printf("ALREADY PROCESSED: %v", ip)
 		return
 	} else {
 		processed[ip] = ip
