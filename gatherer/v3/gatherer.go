@@ -17,34 +17,27 @@ type Node struct {
 	ID       string
 }
 
-func GetAllNodesV3(ctx context.Context, firstNode string, depth int, ignoreDepth bool) {
+func GetAllNodesV3(ctx context.Context, firstNode string, depth int, ignoreDepth bool) (map[string]string, error) {
 	nodesPool := make(map[string]string)
 	blacklist := make(map[string]string)
-	proccessed := make(map[string]string)
+	processed := make(map[string]string)
 	node, err := parser.GetNetInfoFromInterx(ctx, firstNode)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var wg sync.WaitGroup
 	for _, n := range node.Peers {
 		log.Println(n.RemoteIP)
 		wg.Add(1)
-		go testLoop(ctx, &wg, nodesPool, blacklist, proccessed, n.RemoteIP, 0, depth, ignoreDepth)
+		go testLoop(ctx, &wg, nodesPool, blacklist, processed, n.RemoteIP, 0, depth, ignoreDepth)
 	}
 
 	wg.Wait()
 	fmt.Println()
 	log.Printf("\nTotal saved peers:%v\nOriginal node peer count: %v\nBlacklisted nodes(not reachable): %v\n", len(nodesPool), len(node.Peers), len(blacklist))
 
-	mu.Lock()
-	for _, node := range nodesPool {
-		log.Println(node)
-	}
-	mu.Unlock()
-
-	fmt.Println("Done")
-
+	return nodesPool, nil
 }
 
 func testLoop(ctx context.Context, wg *sync.WaitGroup, pool, blacklist, processed map[string]string, ip string, currentDepth, totalDepth int, ignoreDepth bool) {
