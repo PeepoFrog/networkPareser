@@ -12,7 +12,7 @@ import (
 
 func GetNetInfoFromInterx(ctx context.Context, ip string) (*Response, error) {
 
-	ctxWithTO, c := context.WithTimeout(ctx, time.Second*6)
+	ctxWithTO, c := context.WithTimeout(ctx, time.Second*3)
 	defer c()
 	log.Printf("Getting net_info from: %v", ip)
 	url := fmt.Sprintf("http://%v:11000/api/net_info", ip)
